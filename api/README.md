@@ -8,12 +8,8 @@ This API serves as the backend for the Jakarta Insight project, providing variou
 api/
 ├── .env
 ├── api.py
-├── creds_docai.json
-├── creds_gcs.json
 ├── Dockerfile
-├── gemini-flash.json
 ├── requirements.txt
-├── test_docai_import.py
 └── utils/
 ```
 
