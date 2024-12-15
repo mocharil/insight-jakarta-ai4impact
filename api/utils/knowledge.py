@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import os
 import requests
 from langdetect import detect
+from embeddings import use_embedding_from_vertex_ai
 
 # Load environment variables
 load_dotenv()
@@ -154,15 +155,8 @@ class CustomElasticsearchStore:
             return []
 
     def get_embedding(self, text: str) -> List[float]:
-        """Get embeddings from custom API."""
-        response = requests.post(
-            url="http://52.230.101.0:1013/embeddings",
-            json={
-                "text": text,
-                "token": "givemeazurecredsboys!"
-            }
-        )
-        return response.json()['detail']['vector']
+        """Get embeddings from vertex ai."""
+        return use_embedding_from_vertex_ai(text)
 
 class CustomRetriever(BaseRetriever):
     """Custom retriever that wraps our Elasticsearch store."""
