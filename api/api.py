@@ -4,7 +4,7 @@ from utils.ocr_document_ai import OCRProcessor
 from utils.gcs import upload_to_gcs, download_from_gcs
 from utils.gemini import GeminiConnector
 from utils.embeddings import use_embedding_from_vertex_ai
-from utils.vector_search import use_elasticsearch_searching, embedding_open_ai
+from utils.vector_search import use_elasticsearch_searching
 import os, re
 from pydantic import BaseModel
 from typing import List
@@ -189,63 +189,63 @@ async def add_knowledge_base_entry(
     - keywords: Comma-separated keywords
     - file: Optional file attachment
     """
-    # try:
-    # Process file upload if provided
-    file_url = None
-    file_content = None
-    if file and file.filename:
-        # Save uploaded file temporarily
-        temp_file_path = f"temp_{file.filename}"
-        with open(temp_file_path, "wb") as temp_file:
-            temp_file.write(await file.read())
-        
-        # Upload to GCS
-        gcs_path = f"knowledge_base/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
-        upload_to_gcs(temp_file_path, gcs_path)
-        file_url = f"gs://knowledge_base/{gcs_path}"
-        
-        #get file content
-        file_content = ocr_processor.process_file(temp_file_path)
+    try:
+        # Process file upload if provided
+        file_url = None
+        file_content = None
+        if file and file.filename:
+            # Save uploaded file temporarily
+            temp_file_path = f"temp_{file.filename}"
+            with open(temp_file_path, "wb") as temp_file:
+                temp_file.write(await file.read())
+            
+            # Upload to GCS
+            gcs_path = f"knowledge_base/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}"
+            upload_to_gcs(temp_file_path, gcs_path)
+            file_url = f"gs://knowledge_base/{gcs_path}"
+            
+            #get file content
+            file_content = ocr_processor.process_file(temp_file_path)
+    
+            # Clean up temp file
+            os.remove(temp_file_path)
+    
+        content = content + (f"\n{file_content}" if file_content else '')
+    
+        text_embedding = use_embedding_from_vertex_ai(content)
+    
+        # Prepare document for Elasticsearch
+        doc = {
+            "title": title,
+            "text": content,
+            "topic_classification": topic_classification,
+            "keywords": [k.strip() for k in keywords.split(",")],
+            "timestamp": datetime.utcnow().isoformat(),
+            "file_url": file_url,
+            "text_vector": text_embedding
+        }
+    
+        # Index document in Elasticsearch
+        result = es.index(
+            index="knowledge-base",
+            document=doc,
+            refresh=True  # Ensure document is immediately searchable
+        )
+    
+        print({
+            "message": "Knowledge base entry added successfully",
+            "id": result["_id"],
+            "file_url": file_url
+        })
+        return {
+            "message": "Knowledge base entry added successfully",
+            "id": result["_id"],
+            "file_url": file_url
+        }
 
-        # Clean up temp file
-        os.remove(temp_file_path)
-
-    content = content + (f"\n{file_content}" if file_content else '')
-
-    text_embedding = embedding_open_ai(content)
-
-    # Prepare document for Elasticsearch
-    doc = {
-        "title": title,
-        "text": content,
-        "topic_classification": topic_classification,
-        "keywords": [k.strip() for k in keywords.split(",")],
-        "timestamp": datetime.utcnow().isoformat(),
-        "file_url": file_url,
-        "text_vector": text_embedding
-    }
-
-    # Index document in Elasticsearch
-    result = es.index(
-        index="knowledge-base",
-        document=doc,
-        refresh=True  # Ensure document is immediately searchable
-    )
-
-    print({
-        "message": "Knowledge base entry added successfully",
-        "id": result["_id"],
-        "file_url": file_url
-    })
-    return {
-        "message": "Knowledge base entry added successfully",
-        "id": result["_id"],
-        "file_url": file_url
-    }
-
-    # except Exception as e:
-    #     print(e)
-    #     raise HTTPException(status_code=500, detail=f"Error adding knowledge base entry: {str(e)}")
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=f"Error adding knowledge base entry: {str(e)}")
 
 @app.post("/embedding")
 async def embed_text(request: EmbedRequest):
@@ -317,23 +317,3 @@ async def answer_question(request: QuestionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error answering question: {str(e)}")
 
-# You might want to add this initialization code at startup
-@app.on_event("startup")
-async def startup_event():
-    # Create knowledge-base index if it doesn't exist
-    if not es.indices.exists(index="knowledge-base"):
-        es.indices.create(
-            index="knowledge-base",
-            body={
-                "mappings": {
-                    "properties": {
-                        "title": {"type": "text"},
-                        "content": {"type": "text"},
-                        "topic_classification": {"type": "keyword"},
-                        "keywords": {"type": "keyword"},
-                        "timestamp": {"type": "date"},
-                        "file_url": {"type": "keyword"}
-                    }
-                }
-            }
-        )
