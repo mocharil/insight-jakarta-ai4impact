@@ -6,13 +6,16 @@ chat_system = ChatSystem()
 # Initialize chat
 chat_system.initialize_chat()
 
-
 import requests
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os, time, re
 from urllib.parse import quote
-TOKEN = '7349422721:AAGukNj65e583aJBHnrpWy2-ri_4nJ0gymc'
+from dotenv import load_dotenv
+# Load environment variables
+load_dotenv()
+
+TOKEN =  os.getenv("TOKEN_TELEGRAM")
 
 def sendMessage(pesan, chat_id, reply_id='', TOKEN=TOKEN):
     url = f'https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&parse_mode=MarkdownV2&text={pesan}&reply_to_message_id={reply_id}'
